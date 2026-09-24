@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1225">
+  <title>Alien Arrangement Table</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👽</text></svg>">
+</head>
+<body>
+
+  <!-- ============ START SCREEN ============ -->
+  <div id="start" class="start-screen">
+    <div class="start-card">
+      <div class="start-emoji">👽</div>
+      <h1>Alien Arrangement Table</h1>
+      <p class="start-sub">Spread the alien cards out on the table and arrange them
+        into a pattern that makes sense to you. Look for trends.</p>
+      <p class="start-choose">Which set are you working with?</p>
+      <div class="set-buttons">
+        <button class="set-btn" data-set="A">
+          <span class="set-big">Set A</span>
+          <span class="set-small">20 aliens</span>
+        </button>
+        <button class="set-btn" data-set="B">
+          <span class="set-big">Set B</span>
+          <span class="set-small">20 aliens</span>
+        </button>
+      </div>
+      <p id="resume-line" class="resume-line" hidden></p>
+    </div>
+  </div>
+
+  <!-- ============ APP ============ -->
+  <div id="app" hidden>
+    <div id="viewport" class="viewport">
+      <div id="world" class="world">
+        <div id="grid" class="grid-bg"></div>
+        <div id="cell-hint" class="cell-hint" hidden></div>
+        <div id="cards" class="cards-layer"></div>
+      </div>
+    </div>
+
+    <!-- Top toolbar -->
+    <header class="toolbar">
+      <div class="tb-left">
+        <button id="menu-btn" class="tb-btn" title="Menu">☰</button>
+        <span id="set-label" class="set-tag">Set A</span>
+      </div>
+      <div class="tb-right">
+        <button id="fit-btn" class="tb-btn" title="Fit everything on screen">⤢ Fit</button>
+        <button id="zoom-out" class="tb-btn round" title="Zoom out">−</button>
+        <button id="zoom-in" class="tb-btn round" title="Zoom in">+</button>
+      </div>
+    </header>
+
+    <!-- Bottom toolbar -->
+    <footer class="botbar">
+      <button id="stack-btn" class="tb-btn">🂠 Stack all</button>
+      <button id="spread-btn" class="tb-btn">▦ Spread out</button>
+      <button id="blank-btn" class="tb-btn">＋ Blank card</button>
+      <button id="help-btn" class="tb-btn">？ Help</button>
+    </footer>
+  </div>
+
+  <!-- ============ MENU SHEET ============ -->
+  <div id="menu" class="overlay" hidden>
+    <div class="sheet">
+      <h2>Menu</h2>
+      <button id="switch-set" class="sheet-btn">🔄 Switch to the other set</button>
+      <button id="reset-btn" class="sheet-btn danger">↺ Reset this set’s arrangement</button>
+      <button id="menu-close" class="sheet-btn ghost">Close</button>
+      <p class="sheet-note">Your arrangement saves automatically on this iPad.</p>
+    </div>
+  </div>
+
+  <!-- ============ HELP SHEET ============ -->
+  <div id="help" class="overlay" hidden>
+    <div class="sheet">
+      <h2>How to use the table</h2>
+      <ul class="help-list">
+        <li><b>Move a card:</b> drag it. It snaps to the grid when you let go.</li>
+        <li><b>Move the table:</b> drag an empty spot to pan around.</li>
+        <li><b>Zoom:</b> pinch with two fingers, or use + / − . </li>
+        <li><b>Look closely:</b> double-tap a card to zoom right in on it.</li>
+        <li><b>See it all:</b> tap <b>Fit</b> to frame your whole arrangement.</li>
+        <li><b>Stacks:</b> drop a card on another to stack them. Drag the top card off to unstack. A badge shows how many are in a stack.</li>
+      </ul>
+      <button id="help-close" class="sheet-btn ghost">Got it</button>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

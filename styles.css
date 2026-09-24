@@ -72,9 +72,9 @@ html, body {
   z-index: 1;
   transition: opacity .1s;
 }
-.cell-hint.stack {
+.cell-hint.swap {
   border-color: var(--accent-2);
-  background: rgba(34, 211, 238, .12);
+  background: rgba(34, 211, 238, .14);
 }
 
 /* ---------------- Cards ---------------- */

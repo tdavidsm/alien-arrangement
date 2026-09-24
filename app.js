@@ -8,8 +8,6 @@
   // ---- geometry ----
   const CELL = 240;          // grid cell size (world px)
   const CARD_W = 196, CARD_H = 216;
-  const STACK_OFF = 8;       // per-card offset in a stack (world px)
-  const MAX_FAN = 8;         // cap the visible fan so big piles read as a compact stack
   const MIN_SCALE = 0.16, MAX_SCALE = 3.4;
   const DRAG_THRESHOLD = 6;  // screen px before a touch becomes a drag
 
@@ -29,8 +27,7 @@
   const cellHint = $("#cell-hint");
   // ---- state ----
   const SPREAD_COLS = 10;    // width of the tidy starting block (not the answer!)
-  let cards = [];            // {id,img,col,row,order,el}
-  let orderCounter = 1;
+  let cards = [];            // {id,img,col,row,el} — one card per cell, no stacking
   const view = { x: 0, y: 0, scale: 1 };
 
   /* ============================================================
@@ -65,53 +62,39 @@
   function buildCards(list) {
     cardsLayer.innerHTML = "";
     cards = list;
-    orderCounter = 1;
-    cards.forEach((c) => {
-      makeCardEl(c);
-      if (c.order >= orderCounter) orderCounter = c.order + 1;
-    });
-    renderStacks();
+    cards.forEach(makeCardEl);
+    dedupeCells();          // guarantee one card per cell (e.g. old stacked saves)
+    renderCards();
   }
 
-  function cellKey(c) { return c.col + "," + c.row; }
-
-  // lay out every card according to its cell + stack position
-  function renderStacks(exclude) {
-    const groups = new Map();
+  // ensure no two cards share a cell; bump duplicates to the nearest free cell
+  function dedupeCells() {
+    const taken = new Set();
     cards.forEach((c) => {
-      if (c === exclude || c.col === null || c.col === undefined) return;
-      const k = cellKey(c);
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k).push(c);
+      if (c.col == null) return;
+      if (!taken.has(c.col + "," + c.row)) { taken.add(c.col + "," + c.row); return; }
+      for (let r = 1; r < 60; r++) {
+        for (let dr = -r; dr <= r; dr++) {
+          for (let dc = -r; dc <= r; dc++) {
+            if (Math.max(Math.abs(dr), Math.abs(dc)) !== r) continue;
+            const key = (c.col + dc) + "," + (c.row + dr);
+            if (!taken.has(key)) { c.col += dc; c.row += dr; taken.add(key); return; }
+          }
+        }
+      }
     });
-    groups.forEach((group) => {
-      group.sort((a, b) => a.order - b.order);
-      group.forEach((c, k) => {
-        const off = Math.min(k, MAX_FAN) * STACK_OFF; // capped so big piles stay compact
-        const cellY = c.row * CELL + (CELL - CARD_H) / 2;
-        const baseX = c.col * CELL + (CELL - CARD_W) / 2 + off; // lean right
-        const baseY = cellY - off;                              // lean up (upper-right)
-        c.el.style.left = baseX + "px";
-        c.el.style.top = baseY + "px";
-        // Depth like a painter's algorithm, keyed to the card's cell row (not its
-        // fanned position, so the lean direction can't flip it): lower rows render
-        // in front. Within a cell, higher stack index wins, so the top of a pile
-        // stays on top and a lone neighbour (index 0) sits behind an adjacent stack.
-        c.el.style.zIndex = String((Math.round(cellY) + 100000) * 64 + Math.min(k, 63));
-        setBadge(c, k === group.length - 1 && group.length > 1 ? group.length : 0);
-      });
+  }
+
+  // lay out every card at its cell (one per cell, no stacking)
+  function renderCards(exclude) {
+    cards.forEach((c) => {
+      if (c === exclude || c.col == null) return;
+      c.el.style.left = (c.col * CELL + (CELL - CARD_W) / 2) + "px";
+      c.el.style.top = (c.row * CELL + (CELL - CARD_H) / 2) + "px";
+      c.el.style.zIndex = String(1000 + c.row); // lower rows render in front
+      c.el.style.transform = "";
     });
     layoutHandles();
-  }
-
-  function setBadge(card, n) {
-    let b = card.el.querySelector(".count");
-    if (n > 0) {
-      if (!b) { b = document.createElement("div"); b.className = "count"; card.el.appendChild(b); }
-      b.textContent = "×" + n;
-    } else if (b) {
-      b.remove();
-    }
   }
 
   /* ============================================================
@@ -204,11 +187,17 @@
   function endGroupDrag(e) {
     if (!gdrag || e.pointerId !== gdrag.id) return;
     if (gdrag.moved) {
-      gdrag.orig.forEach((o) => { o.c.col = o.col + gdrag.dcol; o.c.row = o.row + gdrag.drow; });
+      const dc = gdrag.dcol, dr = gdrag.drow;
+      const inGroup = new Set(gdrag.group);
+      const targets = gdrag.orig.map((o) => ({ c: o.c, col: o.col + dc, row: o.row + dr }));
+      // Only move if every destination cell is free of non-group cards (no stacking).
+      const blocked = cards.some((c) =>
+        !inGroup.has(c) && targets.some((t) => t.col === c.col && t.row === c.row));
+      if (!blocked) targets.forEach((t) => { t.c.col = t.col; t.c.row = t.row; });
       gdrag.group.forEach((c) => { c.el.style.transform = ""; c.el.classList.remove("dragging"); });
       gdrag.h.classList.remove("grabbing");
-      renderStacks();
-      save();
+      renderCards();          // snaps back to origin if the move was blocked
+      if (!blocked) save();
     }
     gdrag = null;
   }
@@ -232,28 +221,16 @@
     const src = shuffled(ALIENS);
     return src.map((item, i) => ({
       id: item.id, img: item.img,
-      col: i % SPREAD_COLS, row: Math.floor(i / SPREAD_COLS), order: i + 1,
+      col: i % SPREAD_COLS, row: Math.floor(i / SPREAD_COLS),
     }));
   }
 
-  // spread every card into its own cell (unstacks everything)
+  // re-lay every card into a tidy block
   function spreadOut() {
-    const list = cards.slice();
-    list.forEach((c, i) => { c.col = i % SPREAD_COLS; c.row = Math.floor(i / SPREAD_COLS); c.order = i + 1; });
-    orderCounter = list.length + 1;
-    renderStacks();
+    cards.forEach((c, i) => { c.col = i % SPREAD_COLS; c.row = Math.floor(i / SPREAD_COLS); });
+    renderCards();
     save();
     fitAll(true);
-  }
-
-  // stack every card into one cell (a deck)
-  function stackAll() {
-    const center = viewCenterCell();
-    cards.forEach((c, i) => { c.col = center.col; c.row = center.row; c.order = i + 1; });
-    orderCounter = cards.length + 1;
-    renderStacks();
-    save();
-    animateView(cellToCenteredView(center.col, center.row, 1.1), 350);
   }
 
   /* ============================================================
@@ -454,10 +431,10 @@
     const card = drag.card;
     card.el.classList.add("dragging");
     card.el.style.zIndex = "99999999"; // above any depth-based z while lifted
-    // lift out of its cell so the old stack updates immediately
+    // lift out of its cell
     drag.fromCol = card.col; drag.fromRow = card.row;
     card.col = null; card.row = null;
-    renderStacks();
+    renderCards();
     cellHint.hidden = false;
   }
 
@@ -480,25 +457,21 @@
     cellHint.style.width = CELL - inset * 2 + "px";
     cellHint.style.height = CELL - inset * 2 + "px";
     const occupied = cards.some((c) => c !== drag.card && c.col === col && c.row === row);
-    cellHint.classList.toggle("stack", occupied);
+    cellHint.classList.toggle("swap", occupied); // occupied cell → the two cards swap
   }
 
   function dropCard() {
     const card = drag.card;
     card.el.classList.remove("dragging");
     cellHint.hidden = true;
-    card.col = drag.targetCol; card.row = drag.targetRow;
-    // If dropped onto a cell that already holds cards, tuck it to the BACK of the
-    // stack (rendered behind) so returning a card to a pile reveals the next one —
-    // like flipping the top card to the bottom of a deck. Empty cell: place on top.
-    const others = cards.filter((c) => c !== card && c.col === card.col && c.row === card.row);
-    if (others.length) {
-      card.order = Math.min.apply(null, others.map((c) => c.order)) - 1;
-    } else {
-      card.order = orderCounter++;
-    }
-    renderStacks();
+    const tc = drag.targetCol, tr = drag.targetRow;
+    // If the target cell is occupied, swap: the occupant takes the card's old cell.
+    const occupant = cards.find((c) => c !== card && c.col === tc && c.row === tr);
+    card.col = tc; card.row = tr;
+    if (occupant) { occupant.col = drag.fromCol; occupant.row = drag.fromRow; }
+    renderCards();
     flashSnap(card);
+    if (occupant) flashSnap(occupant);
     save();
   }
   function endCardDrag(e) {
@@ -547,7 +520,7 @@
     saveTimer = setTimeout(() => {
       try {
         const data = {
-          cards: cards.map((c) => ({ id: c.id, img: c.img, col: c.col, row: c.row, order: c.order })),
+          cards: cards.map((c) => ({ id: c.id, img: c.img, col: c.col, row: c.row })),
           view: { x: view.x, y: view.y, scale: view.scale },
         };
         localStorage.setItem(STORE_KEY, JSON.stringify(data));
@@ -598,7 +571,6 @@
   $("#zoom-in").addEventListener("click", () => zoomBy(1.4));
   $("#zoom-out").addEventListener("click", () => zoomBy(1 / 1.4));
   $("#spread-btn").addEventListener("click", spreadOut);
-  $("#stack-btn").addEventListener("click", stackAll);
 
   const menu = $("#menu"), help = $("#help");
   $("#menu-btn").addEventListener("click", () => { menu.hidden = false; });

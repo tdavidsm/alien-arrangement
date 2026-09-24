@@ -86,14 +86,16 @@
       group.sort((a, b) => a.order - b.order);
       group.forEach((c, k) => {
         const off = Math.min(k, MAX_FAN) * STACK_OFF; // capped so big piles stay compact
-        const baseX = c.col * CELL + (CELL - CARD_W) / 2 + off;
-        const baseY = c.row * CELL + (CELL - CARD_H) / 2 + off;
+        const cellY = c.row * CELL + (CELL - CARD_H) / 2;
+        const baseX = c.col * CELL + (CELL - CARD_W) / 2 + off; // lean right
+        const baseY = cellY - off;                              // lean up (upper-right)
         c.el.style.left = baseX + "px";
         c.el.style.top = baseY + "px";
-        // Depth like a painter's algorithm: cards lower on the table (larger y) are
-        // closer to the viewer and render in front; higher cards render behind. The
-        // per-card stack index breaks ties so the top of a (capped) pile stays on top.
-        c.el.style.zIndex = String((Math.round(baseY) + 100000) * 64 + Math.min(k, 63));
+        // Depth like a painter's algorithm, keyed to the card's cell row (not its
+        // fanned position, so the lean direction can't flip it): lower rows render
+        // in front. Within a cell, higher stack index wins, so the top of a pile
+        // stays on top and a lone neighbour (index 0) sits behind an adjacent stack.
+        c.el.style.zIndex = String((Math.round(cellY) + 100000) * 64 + Math.min(k, 63));
         setBadge(c, k === group.length - 1 && group.length > 1 ? group.length : 0);
       });
     });

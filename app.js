@@ -25,11 +25,9 @@
   const world = $("#world");
   const cardsLayer = $("#cards");
   const cellHint = $("#cell-hint");
-  const setLabel = $("#set-label");
-
   // ---- state ----
-  let currentSet = "A";
-  let cards = [];            // {id,img,blank,col,row,order,el}
+  const SPREAD_COLS = 10;    // width of the tidy starting block (not the answer!)
+  let cards = [];            // {id,img,col,row,order,el}
   let orderCounter = 1;
   const view = { x: 0, y: 0, scale: 1 };
 
@@ -50,15 +48,13 @@
      ============================================================ */
   function makeCardEl(card) {
     const el = document.createElement("div");
-    el.className = "card" + (card.blank ? " blank" : "");
+    el.className = "card";
     el.dataset.id = card.id;
-    if (!card.blank) {
-      const img = document.createElement("img");
-      img.src = card.img;
-      img.alt = "alien";
-      img.draggable = false;
-      el.appendChild(img);
-    }
+    const img = document.createElement("img");
+    img.src = card.img;
+    img.alt = "alien";
+    img.draggable = false;
+    el.appendChild(img);
     cardsLayer.appendChild(el);
     card.el = el;
   }
@@ -120,20 +116,19 @@
     return a;
   }
 
-  // default: a shuffled 5-wide block near the origin, one card per cell
-  function defaultLayout(setKey) {
-    const src = shuffled(SETS[setKey]);
+  // default: all 40 aliens, shuffled, in a tidy block near the origin
+  function defaultLayout() {
+    const src = shuffled(ALIENS);
     return src.map((item, i) => ({
-      id: item.id, img: item.img, blank: false,
-      col: i % 5, row: Math.floor(i / 5), order: i + 1,
+      id: item.id, img: item.img,
+      col: i % SPREAD_COLS, row: Math.floor(i / SPREAD_COLS), order: i + 1,
     }));
   }
 
-  // spread every card into its own cell (unstacks the whole set)
+  // spread every card into its own cell (unstacks everything)
   function spreadOut() {
     const list = cards.slice();
-    const cols = Math.min(8, Math.max(5, Math.ceil(Math.sqrt(list.length))));
-    list.forEach((c, i) => { c.col = i % cols; c.row = Math.floor(i / cols); c.order = i + 1; });
+    list.forEach((c, i) => { c.col = i % SPREAD_COLS; c.row = Math.floor(i / SPREAD_COLS); c.order = i + 1; });
     orderCounter = list.length + 1;
     renderStacks();
     save();
@@ -148,19 +143,6 @@
     renderStacks();
     save();
     animateView(cellToCenteredView(center.col, center.row, 1.1), 350);
-  }
-
-  function addBlank() {
-    const center = viewCenterCell();
-    const card = {
-      id: "blank-" + Date.now(), img: null, blank: true,
-      col: center.col, row: center.row, order: orderCounter++,
-    };
-    cards.push(card);
-    makeCardEl(card);
-    renderStacks();
-    flashSnap(card);
-    save();
   }
 
   /* ============================================================
@@ -439,25 +421,24 @@
   /* ============================================================
      Persistence
      ============================================================ */
-  function storeKey(setKey) { return "aliens-table-" + setKey; }
+  const STORE_KEY = "aliens-table";
   let saveTimer = null;
   function save() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
         const data = {
-          cards: cards.map((c) => ({ id: c.id, img: c.img, blank: c.blank, col: c.col, row: c.row, order: c.order })),
+          cards: cards.map((c) => ({ id: c.id, img: c.img, col: c.col, row: c.row, order: c.order })),
           view: { x: view.x, y: view.y, scale: view.scale },
         };
-        localStorage.setItem(storeKey(currentSet), JSON.stringify(data));
-        localStorage.setItem("aliens-last-set", currentSet);
+        localStorage.setItem(STORE_KEY, JSON.stringify(data));
       } catch (err) { /* private mode: ignore */ }
     }, 250);
   }
 
-  function loadSaved(setKey) {
+  function loadSaved() {
     try {
-      const raw = localStorage.getItem(storeKey(setKey));
+      const raw = localStorage.getItem(STORE_KEY);
       if (!raw) return null;
       const data = JSON.parse(raw);
       if (!data || !Array.isArray(data.cards) || !data.cards.length) return null;
@@ -468,70 +449,49 @@
   /* ============================================================
      Set loading / start flow
      ============================================================ */
-  function openSet(setKey) {
-    currentSet = setKey;
-    setLabel.textContent = "Set " + setKey;
+  function openTable() {
     startScreen.hidden = true;
     app.hidden = false; // reveal first so the viewport has a measurable size
-    const saved = loadSaved(setKey);
+    const saved = loadSaved();
     if (saved) {
       buildCards(saved.cards.map((c) => ({ ...c, el: null })));
       Object.assign(view, saved.view);
       applyTransform();
     } else {
-      buildCards(defaultLayout(setKey));
+      buildCards(defaultLayout());
       requestAnimationFrame(() => { fitAll(false); save(); });
     }
   }
 
-  function resetSet() {
-    try { localStorage.removeItem(storeKey(currentSet)); } catch (e) {}
-    buildCards(defaultLayout(currentSet));
+  function resetTable() {
+    try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    buildCards(defaultLayout());
     fitAll(true);
     save();
-  }
-
-  function switchSet() {
-    save();
-    openSet(currentSet === "A" ? "B" : "A");
   }
 
   /* ============================================================
      UI wiring
      ============================================================ */
-  document.querySelectorAll(".set-btn").forEach((b) =>
-    b.addEventListener("click", () => openSet(b.dataset.set)));
+  $("#start-btn").addEventListener("click", openTable);
 
   $("#fit-btn").addEventListener("click", () => fitAll(true));
   $("#zoom-in").addEventListener("click", () => zoomBy(1.4));
   $("#zoom-out").addEventListener("click", () => zoomBy(1 / 1.4));
   $("#spread-btn").addEventListener("click", spreadOut);
   $("#stack-btn").addEventListener("click", stackAll);
-  $("#blank-btn").addEventListener("click", addBlank);
 
   const menu = $("#menu"), help = $("#help");
   $("#menu-btn").addEventListener("click", () => { menu.hidden = false; });
   $("#menu-close").addEventListener("click", () => { menu.hidden = true; });
   $("#help-btn").addEventListener("click", () => { help.hidden = false; });
   $("#help-close").addEventListener("click", () => { help.hidden = true; });
-  $("#switch-set").addEventListener("click", () => { menu.hidden = true; switchSet(); });
   $("#reset-btn").addEventListener("click", () => {
     menu.hidden = true;
-    if (confirm("Return all Set " + currentSet + " cards to a fresh, shuffled layout? Your current arrangement will be cleared.")) resetSet();
+    if (confirm("Return all 40 cards to a fresh, shuffled layout? Your current arrangement will be cleared.")) resetTable();
   });
   [menu, help].forEach((ov) =>
     ov.addEventListener("click", (e) => { if (e.target === ov) ov.hidden = true; }));
 
   window.addEventListener("resize", () => applyTransform());
-
-  // resume hint on the start screen
-  (function initStart() {
-    const last = (function () { try { return localStorage.getItem("aliens-last-set"); } catch (e) { return null; } })();
-    if (last && loadSaved(last)) {
-      const line = $("#resume-line");
-      line.hidden = false;
-      line.innerHTML = 'You have a saved arrangement for <a id="resume-link">Set ' + last + "</a>.";
-      $("#resume-link").addEventListener("click", () => openSet(last));
-    }
-  })();
 })();

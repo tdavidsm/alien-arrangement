@@ -15,20 +15,14 @@
     <div class="start-card">
       <div class="start-emoji">👽</div>
       <h1>Alien Arrangement Table</h1>
-      <p class="start-sub">Spread the alien cards out on the table and arrange them
-        into a pattern that makes sense to you. Look for trends.</p>
-      <p class="start-choose">Which set are you working with?</p>
+      <p class="start-sub">Spread the 40 alien cards out on the table and arrange
+        them into a pattern that makes sense to you. Look for trends.</p>
       <div class="set-buttons">
-        <button class="set-btn" data-set="A">
-          <span class="set-big">Set A</span>
-          <span class="set-small">20 aliens</span>
-        </button>
-        <button class="set-btn" data-set="B">
-          <span class="set-big">Set B</span>
-          <span class="set-small">20 aliens</span>
+        <button id="start-btn" class="set-btn">
+          <span class="set-big">Start</span>
+          <span class="set-small">40 aliens</span>
         </button>
       </div>
-      <p id="resume-line" class="resume-line" hidden></p>
     </div>
   </div>
 
@@ -46,7 +40,6 @@
     <header class="toolbar">
       <div class="tb-left">
         <button id="menu-btn" class="tb-btn" title="Menu">☰</button>
-        <span id="set-label" class="set-tag">Set A</span>
       </div>
       <div class="tb-right">
         <button id="fit-btn" class="tb-btn" title="Fit everything on screen">⤢ Fit</button>
@@ -59,7 +52,6 @@
     <footer class="botbar">
       <button id="stack-btn" class="tb-btn">🂠 Stack all</button>
       <button id="spread-btn" class="tb-btn">▦ Spread out</button>
-      <button id="blank-btn" class="tb-btn">＋ Blank card</button>
       <button id="help-btn" class="tb-btn">？ Help</button>
     </footer>
   </div>
@@ -68,8 +60,7 @@
   <div id="menu" class="overlay" hidden>
     <div class="sheet">
       <h2>Menu</h2>
-      <button id="switch-set" class="sheet-btn">🔄 Switch to the other set</button>
-      <button id="reset-btn" class="sheet-btn danger">↺ Reset this set’s arrangement</button>
+      <button id="reset-btn" class="sheet-btn danger">↺ Reset to a fresh, shuffled layout</button>
       <button id="menu-close" class="sheet-btn ghost">Close</button>
       <p class="sheet-note">Your arrangement saves automatically on this iPad.</p>
     </div>

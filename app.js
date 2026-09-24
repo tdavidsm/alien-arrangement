@@ -90,7 +90,10 @@
         const baseY = c.row * CELL + (CELL - CARD_H) / 2 + off;
         c.el.style.left = baseX + "px";
         c.el.style.top = baseY + "px";
-        c.el.style.zIndex = String(1000 + Math.round(c.order));
+        // Depth like a painter's algorithm: cards lower on the table (larger y) are
+        // closer to the viewer and render in front; higher cards render behind. The
+        // per-card stack index breaks ties so the top of a (capped) pile stays on top.
+        c.el.style.zIndex = String((Math.round(baseY) + 100000) * 64 + Math.min(k, 63));
         setBadge(c, k === group.length - 1 && group.length > 1 ? group.length : 0);
       });
     });
@@ -344,7 +347,7 @@
     drag.moved = true;
     const card = drag.card;
     card.el.classList.add("dragging");
-    card.el.style.zIndex = "999999";
+    card.el.style.zIndex = "99999999"; // above any depth-based z while lifted
     // lift out of its cell so the old stack updates immediately
     drag.fromCol = card.col; drag.fromRow = card.row;
     card.col = null; card.row = null;

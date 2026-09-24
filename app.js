@@ -9,6 +9,7 @@
   const CELL = 240;          // grid cell size (world px)
   const CARD_W = 196, CARD_H = 216;
   const STACK_OFF = 8;       // per-card offset in a stack (world px)
+  const MAX_FAN = 8;         // cap the visible fan so big piles read as a compact stack
   const MIN_SCALE = 0.16, MAX_SCALE = 3.4;
   const DRAG_THRESHOLD = 6;  // screen px before a touch becomes a drag
 
@@ -84,8 +85,9 @@
     groups.forEach((group) => {
       group.sort((a, b) => a.order - b.order);
       group.forEach((c, k) => {
-        const baseX = c.col * CELL + (CELL - CARD_W) / 2 + k * STACK_OFF;
-        const baseY = c.row * CELL + (CELL - CARD_H) / 2 + k * STACK_OFF;
+        const off = Math.min(k, MAX_FAN) * STACK_OFF; // capped so big piles stay compact
+        const baseX = c.col * CELL + (CELL - CARD_W) / 2 + off;
+        const baseY = c.row * CELL + (CELL - CARD_H) / 2 + off;
         c.el.style.left = baseX + "px";
         c.el.style.top = baseY + "px";
         c.el.style.zIndex = String(1000 + Math.round(c.order));
@@ -377,7 +379,15 @@
     card.el.classList.remove("dragging");
     cellHint.hidden = true;
     card.col = drag.targetCol; card.row = drag.targetRow;
-    card.order = orderCounter++;
+    // If dropped onto a cell that already holds cards, tuck it to the BACK of the
+    // stack (rendered behind) so returning a card to a pile reveals the next one —
+    // like flipping the top card to the bottom of a deck. Empty cell: place on top.
+    const others = cards.filter((c) => c !== card && c.col === card.col && c.row === card.row);
+    if (others.length) {
+      card.order = Math.min.apply(null, others.map((c) => c.order)) - 1;
+    } else {
+      card.order = orderCounter++;
+    }
     renderStacks();
     flashSnap(card);
     save();

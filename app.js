@@ -25,6 +25,7 @@
   const viewport = $("#viewport");
   const world = $("#world");
   const cardsLayer = $("#cards");
+  const handlesLayer = $("#handles");
   const cellHint = $("#cell-hint");
   // ---- state ----
   const SPREAD_COLS = 10;    // width of the tidy starting block (not the answer!)
@@ -38,6 +39,7 @@
   function applyTransform() {
     world.style.transform =
       "translate(" + view.x + "px," + view.y + "px) scale(" + view.scale + ")";
+    layoutHandles();
   }
   function screenToWorld(sx, sy) {
     return { x: (sx - view.x) / view.scale, y: (sy - view.y) / view.scale };
@@ -99,6 +101,7 @@
         setBadge(c, k === group.length - 1 && group.length > 1 ? group.length : 0);
       });
     });
+    layoutHandles();
   }
 
   function setBadge(card, n) {
@@ -110,6 +113,107 @@
       b.remove();
     }
   }
+
+  /* ============================================================
+     Row / column handles — drag a whole line of cards at once
+     ============================================================ */
+  const HANDLE = 34, STRIP_TOP = 74, STRIP_LEFT = 10, BOT_INSET = 74;
+  const GRIP = '<svg width="20" height="7" viewBox="0 0 20 7">' +
+    '<circle cx="3.5" cy="3.5" r="2.6"/><circle cx="10" cy="3.5" r="2.6"/>' +
+    '<circle cx="16.5" cy="3.5" r="2.6"/></svg>';
+  let handlesKey = "";
+
+  function layoutHandles() {
+    if (app.hidden) return;
+    const cols = new Set(), rows = new Set();
+    cards.forEach((c) => { if (c.col != null) { cols.add(c.col); rows.add(c.row); } });
+    const colList = [...cols].sort((a, b) => a - b);
+    const rowList = [...rows].sort((a, b) => a - b);
+    const key = "c" + colList.join(",") + "r" + rowList.join(",");
+    if (key !== handlesKey) { rebuildHandles(colList, rowList); handlesKey = key; }
+    positionHandles();
+  }
+
+  function rebuildHandles(colList, rowList) {
+    handlesLayer.innerHTML = "";
+    const add = (type, idx) => {
+      const h = document.createElement("div");
+      h.className = "rc-handle " + type;
+      h.dataset.type = type;
+      h.dataset.index = String(idx);
+      h.title = type === "col" ? "Drag to move this column" : "Drag to move this row";
+      h.innerHTML = GRIP;
+      handlesLayer.appendChild(h);
+    };
+    colList.forEach((c) => add("col", c));
+    rowList.forEach((r) => add("row", r));
+  }
+
+  function positionHandles() {
+    const vw = viewport.clientWidth, vh = viewport.clientHeight;
+    handlesLayer.querySelectorAll(".rc-handle").forEach((h) => {
+      const idx = +h.dataset.index;
+      if (h.dataset.type === "col") {
+        const sx = view.x + (idx * CELL + CELL / 2) * view.scale;
+        if (sx < STRIP_LEFT + HANDLE + 6 || sx > vw - 6) { h.style.display = "none"; return; }
+        h.style.display = "flex";
+        h.style.left = (sx - HANDLE / 2) + "px";
+        h.style.top = STRIP_TOP + "px";
+      } else {
+        const sy = view.y + (idx * CELL + CELL / 2) * view.scale;
+        if (sy < STRIP_TOP + HANDLE + 6 || sy > vh - BOT_INSET) { h.style.display = "none"; return; }
+        h.style.display = "flex";
+        h.style.left = STRIP_LEFT + "px";
+        h.style.top = (sy - HANDLE / 2) + "px";
+      }
+    });
+  }
+
+  // ---- group drag ----
+  let gdrag = null;
+  handlesLayer.addEventListener("pointerdown", (e) => {
+    const h = e.target.closest(".rc-handle");
+    if (!h) return;
+    h.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    const type = h.dataset.type, idx = +h.dataset.index;
+    const group = cards.filter((c) => (type === "col" ? c.col === idx : c.row === idx));
+    gdrag = {
+      id: e.pointerId, h, group,
+      orig: group.map((c) => ({ c: c, col: c.col, row: c.row })),
+      start: screenToWorld(e.clientX, e.clientY),
+      sx: e.clientX, sy: e.clientY, moved: false, dcol: 0, drow: 0,
+    };
+  });
+
+  handlesLayer.addEventListener("pointermove", (e) => {
+    if (!gdrag || e.pointerId !== gdrag.id) return;
+    if (!gdrag.moved) {
+      if (Math.hypot(e.clientX - gdrag.sx, e.clientY - gdrag.sy) < DRAG_THRESHOLD) return;
+      gdrag.moved = true;
+      gdrag.h.classList.add("grabbing");
+      gdrag.group.forEach((c, i) => { c.el.classList.add("dragging"); c.el.style.zIndex = String(99990000 + i); });
+    }
+    const cur = screenToWorld(e.clientX, e.clientY);
+    gdrag.dcol = Math.round((cur.x - gdrag.start.x) / CELL);
+    gdrag.drow = Math.round((cur.y - gdrag.start.y) / CELL);
+    const tx = gdrag.dcol * CELL, ty = gdrag.drow * CELL;
+    gdrag.group.forEach((c) => { c.el.style.transform = "translate(" + tx + "px," + ty + "px)"; });
+  });
+
+  function endGroupDrag(e) {
+    if (!gdrag || e.pointerId !== gdrag.id) return;
+    if (gdrag.moved) {
+      gdrag.orig.forEach((o) => { o.c.col = o.col + gdrag.dcol; o.c.row = o.row + gdrag.drow; });
+      gdrag.group.forEach((c) => { c.el.style.transform = ""; c.el.classList.remove("dragging"); });
+      gdrag.h.classList.remove("grabbing");
+      renderStacks();
+      save();
+    }
+    gdrag = null;
+  }
+  handlesLayer.addEventListener("pointerup", endGroupDrag);
+  handlesLayer.addEventListener("pointercancel", endGroupDrag);
 
   /* ============================================================
      Layout presets

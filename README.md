@@ -22,6 +22,9 @@ Built as a single static site (no build step, no dependencies) for free hosting 
 - **Stack cards:** drop a card onto another and they stack, with a badge showing
   how many are in the pile (and a fanned edge so it's clearly a stack). Drag the
   top card off to unstack.
+- **Move a whole row or column:** drag the round handle at the left of a row or
+  the top of a column, and the entire line of cards moves together and snaps to
+  the grid.
 - **Stack all / Spread out:** gather every card into one deck, or lay them all out.
 
 The arrangement is saved automatically on the iPad, and **Reset** (in the menu)
